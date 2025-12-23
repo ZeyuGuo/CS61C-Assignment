@@ -1,3 +1,4 @@
+# java -jar ../tools/venus.jar megalistmanips.s -cc
 .globl map
 
 .data
@@ -13,7 +14,7 @@ end_msg:    .asciiz "Lists after: \n"
 .text
 main:
     jal create_default_list
-    mv s0, a0   # v0 = s0 is head of node list
+    mv s0, a0   # a0 = s0 is head of node list
 
     #print "lists before: "
     la a1, start_msg
@@ -21,7 +22,7 @@ main:
     ecall
 
     #print the list
-    add a0, s0, x0
+    add a0, s0, x0      # a0 = s0 is head of node list
     jal print_list
 
     # print a newline
@@ -51,10 +52,12 @@ map:
     sw s1, 4(sp)
     sw s0, 8(sp)
 
+    # a0: address of this node
+    # a1: address of the function f
     beq a0, x0, done    # if we were given a null pointer, we're done.
 
     add s0, a0, x0      # save address of this node in s0
-    add s1, a1, x0      # save address of function in s1
+    add s1, a1, x0      # save address of function `mystery` in s1
     add t0, x0, x0      # t0 is a counter
 
     # remember that each node is 12 bytes long:
@@ -62,24 +65,54 @@ map:
     # - 4 for the size of the array
     # - 4 more for the pointer to the next node
 
-    # also keep in mind that we should not make ANY assumption on which registers
-    # are modified by the callees, even when we know the content inside the functions 
-    # we call. this is to enforce the abstraction barrier of calling convention.
+    # also keep in mind that we should not make ANY assumption on which registers are modified by the callees,
+    # even when we know the content inside the functions we call.
+    # this is to enforce the abstraction barrier of calling convention.
 mapLoop:
-    add t1, s0, x0      # load the address of the array of current node into t1
+    # a0: address of this node
+    # a1: address of the function f
+    # s0: address of this node, 0(s0): *arr, 4(s0): size, 8(s0): next
+    # s1: address of the function f
+    # t0: a counter, dont touch
+    # t1: the address of the array of current node
+    # t2: the size of the node's array
+    # fix
+    # add t1, s0, x0      # load the address of the array of current node into t1
+    lw t1, 0(s0)        # array
     lw t2, 4(s0)        # load the size of the node's array into t2
-
-    add t1, t1, t0      # offset the array address by the count
+    
+    # fix
+    # add t1, t1, t0      # offset the array address by the count
+    li t4, 4
+    mul t3, t0, t4      # counter * 4, 4 bytes
+    add t1, t1, t3
     lw a0, 0(t1)        # load the value at that address into a0
+
+    # fix
+    # store the temporal variable before jump into function
+    # prologue and epilogue
+    addi sp, sp, -12
+    sw t0, 0(sp)
+    sw t1, 4(sp)
+    sw t2, 8(sp)
 
     jalr s1             # call the function on that value.
 
+    lw t0, 0(sp)
+    lw t1, 4(sp)
+    lw t2, 8(sp)
+    addi sp, sp, 12
+
     sw a0, 0(t1)        # store the returned value back into the array
     addi t0, t0, 1      # increment the count
-    bne t0, t2, mapLoop # repeat if we haven't reached the array size yet
+    bne t0, t2, mapLoop # repeat if we haven't reached the array size yet, t2 = 5
 
-    la a0, 8(s0)        # load the address of the next node into a0
-    lw a1, 0(s1)        # put the address of the function back into a1 to prepare for the recursion
+    # fix
+    # la a0, 8(s0)        # load the address of the next node into a0
+    lw a0, 8(s0)        # why 8? 8(s0): next node address
+    # fix
+    # lw a1, 0(s1)        # put the address of the function back into a1 to prepare for the recursion
+    add a1, s1, x0
 
     jal  map            # recurse
 done:
@@ -90,6 +123,7 @@ done:
     jr ra
 
 mystery:
+    # return (a0 * a0 + a0)
     mul t1, a0, a0
     add a0, t1, a0
     jr ra
@@ -139,7 +173,7 @@ fillArray: lw t0, 0(a1) #t0 gets array element
     jr ra
 
 print_list:
-    bne a0, x0, printMeAndRecurse
+    bne a0, x0, printMeAndRecurse  # address of node not equal to 0
     jr ra   # nothing to print
 printMeAndRecurse:
     mv t0, a0 # t0 gets address of current node

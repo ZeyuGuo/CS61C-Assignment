@@ -1,3 +1,4 @@
+# java -jar ../tools/venus.jar discrete_fn.s -cc
 .globl f
 
 .data
@@ -77,7 +78,31 @@ main:
 # Think: why might having a1 be useful?
 f:
     # YOUR CODE GOES HERE!
+    # 6, 61, 17, -38, 19, 42, 5
+    # use stack to store data
+    addi sp, sp, -28
+    li t0, 6
+    sw t0, 0(sp)
+    li t0, 61
+    sw t0, 4(sp)
+    li t0, 17
+    sw t0, 8(sp)
+    li t0, -38
+    sw t0, 12(sp)
+    li t0, 19
+    sw t0, 16(sp)
+    li t0, 42
+    sw t0, 20(sp)
+    li t0, 5
+    sw t0, 24(sp)
 
+    addi a2, a0, 3   # a2 = 0~6
+    li t1, 4
+    mul t0, a2, t1  # t0 = 0~24
+    add t0, sp, t0  # sp + offset t0
+    lw a0, 0(t0)
+    sw a0, 0(a1)
+    addi sp, sp, 28
     jr ra               # Always remember to jr ra after your function!
 
 print_int:
