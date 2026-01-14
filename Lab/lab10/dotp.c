@@ -16,8 +16,10 @@ int main() {
 	// calculate result serially
 	for(int i=0; i<ARRAY_SIZE; i++)
 		serial_result += x[i] * y[i];
-
-	int num_threads = omp_get_max_threads();
+	printf("serial result: %f\n", serial_result);
+	// int num_threads = omp_get_max_threads();
+	int num_threads = 8;
+	
 
 	// Test framework that sweeps the number of threads and times each ru
 	for (int i=1; i<=num_threads; i++) {

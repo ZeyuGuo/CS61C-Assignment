@@ -11,11 +11,13 @@ int main() {
 
 	// Test framework that sweeps the number of threads and times each run
 	double start_time, run_time;
-	int num_threads = omp_get_max_threads();	
-
+	// int num_threads = omp_get_max_threads();	
+	int num_threads = 8;
 
 	for (int i=1; i<=num_threads; i++) {
 		omp_set_num_threads(i);		
+		// printf("thread ID: %d\n", omp_get_thread_num());
+		// printf("number of threads: %d\n", omp_get_num_threads());
 	  	start_time = omp_get_wtime();
 		for(int j=0; j<REPEAT; j++)
 			v_add_optimized_adjacent(x,y,z);

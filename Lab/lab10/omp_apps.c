@@ -37,8 +37,14 @@ void v_add_optimized_adjacent(double* x, double* y, double* z) {
   // Do NOT use the `for` directive here!
   #pragma omp parallel
   {
-    for(int i=0; i<ARRAY_SIZE; i++)
+    int num_threads = omp_get_num_threads();
+    int thread_ID = omp_get_thread_num();
+
+    // printf("thread_ID: %d\n", thread_ID);
+		// printf("number of threads: %d\n", omp_get_num_threads());
+    for(int i=thread_ID; i<ARRAY_SIZE; i+=num_threads){
       z[i] = x[i] + y[i];
+    } 
   }
 }
 
@@ -48,8 +54,14 @@ void v_add_optimized_chunks(double* x, double* y, double* z) {
   // Do NOT use the `for` directive here!
   #pragma omp parallel
   {
-    for(int i=0; i<ARRAY_SIZE; i++)
+    int num_threads = omp_get_num_threads();
+    int thread_ID = omp_get_thread_num();
+    int chunk_start = thread_ID * (ARRAY_SIZE/num_threads);
+    int chunk_end = thread_ID == num_threads-1 ? ARRAY_SIZE :(thread_ID+1) * (ARRAY_SIZE/num_threads);
+
+    for(int i=chunk_start; i<chunk_end; i++){
       z[i] = x[i] + y[i];
+    }
   }
 }
 // END PART 1 EX 2
@@ -73,12 +85,33 @@ double dotp_manual_optimized(double* x, double* y, int arr_size) {
   // TODO: Modify this function
   // Do NOT use the `reduction` directive here!
   double global_sum = 0.0;
+  
   #pragma omp parallel
   {
+    int num_threads = omp_get_num_threads();
+    int thread_ID = omp_get_thread_num();
+
+    static double *sum = NULL;
+
+    #pragma omp single
+    {
+      sum = (double*) malloc(num_threads * sizeof(double));
+      for (int i = 0; i < num_threads; i++) sum[i] = 0.0;
+    }
+
+    double local = 0.0;
     #pragma omp for
     for (int i = 0; i < arr_size; i++)
-      #pragma omp critical
-      global_sum += x[i] * y[i];
+      local += x[i] * y[i];
+    // printf("%f\n", local);
+    sum[thread_ID] = local;
+
+    #pragma omp atomic
+      global_sum += local;
+    // #pragma omp for
+    // for (int i = 0; i < num_threads; i++)
+    //   #pragma omp critical
+    //   global_sum += sum[i];
   }
   return global_sum;
 }
@@ -88,11 +121,10 @@ double dotp_reduction_optimized(double* x, double* y, int arr_size) {
   // TODO: Modify this function
   // Please DO use the `reduction` directive here!
   double global_sum = 0.0;
-  #pragma omp parallel
+  #pragma omp parallel reduction(+:global_sum)
   {
     #pragma omp for
     for (int i = 0; i < arr_size; i++)
-      #pragma omp critical
       global_sum += x[i] * y[i];
   }
   return global_sum;
@@ -162,6 +194,27 @@ char* compute_dotp(int arr_size) {
 
 /* ---------------------Image Processing: Sobel Edge Detector----------------------*/
 int sobel[3][3] = {{-1, 0, 1}, {-2, 0, 2}, {-1, 0, 1}};
+// void sobel_filter(bmp_pixel **src, bmp_pixel **dst, int row, int col) {
+//   int res = 0;
+//   int num_threads = omp_get_max_threads();
+//   omp_set_num_threads(num_threads);
+  
+//   #pragma omp parallel reduction(+:res)
+//   {
+//     #pragma omp for
+//     for (int i = 0; i < 3; i++) {
+//       for (int j = 0; j < 3; j++) {
+//           bmp_pixel pxl = src[row - 1 + i][col - 1 + j];
+//           res += ((int)pxl.blue + (int)pxl.green + (int)pxl.red) * sobel[i][j];
+//       }
+//     }
+//   }
+
+//   res *= 2;    // scale a little bit so the result image is brighter.
+//   res = res < 0? 0 : (res > 255? 255 : res);
+//   bmp_pixel_init(&dst[row][col], res, res, res);
+// }
+
 void sobel_filter(bmp_pixel **src, bmp_pixel **dst, int row, int col) {
    int res = 0;
    for (int i = 0; i < 3; i++) {
@@ -192,11 +245,19 @@ char *image_proc(const char* filename) {
 
    // To parallelize these for loops, check out scheduling policy: http://jakascorner.com/blog/2016/06/omp-for-scheduling.html
    // and omp collapse directive https://software.intel.com/en-us/articles/openmp-loop-collapse-directive
-   for (int i = 1; i < hgt-1; i++) {
-      for (int j = 1; j < wid-1; j++) {
-         sobel_filter(img.img_pixels, img_copy.img_pixels, i, j);
-      }
-   }
+  double start_time, run_time;
+  int num_threads = omp_get_max_threads();
+  start_time = omp_get_wtime();
+  
+  for (int i = 1; i < hgt-1; i++) {
+    for (int j = 1; j < wid-1; j++) {
+        sobel_filter(img.img_pixels, img_copy.img_pixels, i, j);
+    }
+  }
+  
+  run_time = omp_get_wtime() - start_time;
+  printf("sobel_filter Optimized: %d thread(s) took %f seconds\n", num_threads, run_time);
+
    bmp_img_write(&img_copy, res);
    bmp_img_free(&img_copy);
    bmp_img_free(&img);
